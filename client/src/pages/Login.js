@@ -30,7 +30,9 @@ const Login = () => {
             }
 
         } catch (err) {
-            setError(err.response?.data?.msg || 'Invalid Mobile Number or Password');
+            console.error("LOGIN ERROR CATCH:", err);
+            console.error("RESPONSE DATA:", err.response?.data);
+            setError(err.response?.data?.msg || err.message || 'Invalid Mobile Number or Password');
         }
     };
 
