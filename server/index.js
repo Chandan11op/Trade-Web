@@ -18,7 +18,12 @@ connectDB();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'https://your-app-name.vercel.app', // Replace with your exact Vercel URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],  // Allowed request types
+  credentials: true                           // Important if you use cookies or sessions
+}));
+
 app.use(express.json()); // Allows us to accept JSON data in the body
 
 app.use('/api/trades', tradeRoutes);
