@@ -144,12 +144,19 @@ const AdminDashboard = () => {
     const handleEditUser = async (e) => {
         e.preventDefault();
         try {
-            await api.put(`/users/${editingUser._id}`, editingUser);
+            // Ensure numbers are properly parsed before sending
+            const payload = {
+                ...editingUser,
+                percentage: Number(editingUser.percentage || 0),
+                brokerage: editingUser.brokerage ? Number(editingUser.brokerage) : 2
+            };
+
+            await api.put(`/users/${editingUser._id}`, payload);
             alert("User updated successfully!");
             setShowEditUserModal(false);
             fetchDashboardData();
         } catch (error) {
-            alert(error.response?.data?.error || "Error updating user");
+            alert(error.response?.data?.error || error.response?.data?.msg || "Error updating user");
         }
     };
 
@@ -325,7 +332,7 @@ const AdminDashboard = () => {
             setShowFlagModal(false);
             fetchDashboardData();
         } catch (error) {
-            alert(error.response?.data?.message || "Action Denied: You cannot open a trade after 1:00 PM or close a trade after 6:00 PM.");
+            alert(error.response?.data?.message || "Error executing action.");
         }
         setIsSubmitting(false);
     };
@@ -602,7 +609,23 @@ const AdminDashboard = () => {
                                                         <button className="btn" style={{ padding: '5px 10px', fontSize: '0.8rem', background: '#10b981', color: '#fff', border: 'none' }} onClick={() => openFlagModal(t, 'TEM_OPEN')}>Open Today</button>
                                                         <button className="btn" style={{ padding: '5px 10px', fontSize: '0.8rem', background: '#ef4444', color: '#fff', border: 'none' }} onClick={() => openFlagModal(t, 'TEM_CLOSE')}>Close Today</button>
                                                         {(t.allocated_qty || 0) < t.total_qty && (
-                                                            <button className="btn btn-primary" style={{ padding: '5px 10px', fontSize: '0.8rem' }} onClick={() => openAllocateModal(t)}>Allocate</button>
+                                                            <button
+                                                                className="btn btn-primary"
+                                                                style={{
+                                                                    padding: '5px 10px',
+                                                                    fontSize: '0.8rem',
+                                                                    opacity: (t.allocated_qty || 0) >= t.total_qty ? 0.5 : 1,
+                                                                    cursor: (t.allocated_qty || 0) >= t.total_qty ? 'not-allowed' : 'pointer'
+                                                                }}
+                                                                onClick={() => {
+                                                                    if ((t.allocated_qty || 0) < t.total_qty) {
+                                                                        openAllocateModal(t);
+                                                                    }
+                                                                }}
+                                                                disabled={(t.allocated_qty || 0) >= t.total_qty}
+                                                            >
+                                                                {(t.allocated_qty || 0) >= t.total_qty ? 'Allocated' : 'Allocate'}
+                                                            </button>
                                                         )}
                                                         <button className="btn" style={{ padding: '5px 10px', fontSize: '0.8rem', background: 'var(--danger)', color: '#fff', border: 'none' }} onClick={() => openCloseModal(t)}>Close</button>
                                                     </div>
@@ -710,7 +733,7 @@ const AdminDashboard = () => {
                                             <td style={tdStyle}>{new Date(a.buy_timestamp).toLocaleString()}</td>
                                             <td style={{ ...tdStyle, fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--primary)' }}>{a.allocation_id}</td>
                                             <td style={{ ...tdStyle, fontWeight: 'bold' }}>{a.master_trade_id?.symbol}</td>
-                                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{users.find(u => u.mob_num === a.mob_num)?.user_name || a.mob_num}</td>
+                                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{users.find(u => String(u.mob_num) === String(a.mob_num))?.user_name || a.mob_num}</td>
                                             <td style={tdStyle}>{a.allocation_qty}</td>
                                             <td style={tdStyle}>
                                                 <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', background: a.status === 'CLOSED' ? 'rgba(239,68,68,0.1)' : 'rgba(79,70,229,0.1)', color: a.status === 'CLOSED' ? 'var(--danger)' : 'var(--primary)' }}>
@@ -747,7 +770,7 @@ const AdminDashboard = () => {
                                     {sortedLedger.map(l => (
                                         <tr key={l._id}>
                                             <td style={tdStyle}>{new Date(l.entry_date).toLocaleString()}</td>
-                                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{l.mob_num}</td>
+                                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{users.find(u => String(u.mob_num) === String(l.mob_num))?.user_name || l.mob_num}</td>
                                             <td style={tdStyle}>{l.description}</td>
                                             <td style={{ ...tdStyle, color: 'var(--success)', fontFamily: 'monospace' }}>{l.amt_cr > 0 ? `₹ ${l.amt_cr.toLocaleString()}` : '-'}</td>
                                             <td style={{ ...tdStyle, color: 'var(--danger)', fontFamily: 'monospace' }}>{l.amt_dr > 0 ? `₹ ${l.amt_dr.toLocaleString()}` : '-'}</td>
