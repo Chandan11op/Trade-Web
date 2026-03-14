@@ -152,12 +152,19 @@ const AdminDashboard = () => {
     const handleEditUser = async (e) => {
         e.preventDefault();
         try {
-            await api.put(`/users/${editingUser._id}`, editingUser);
+            // Ensure numbers are properly parsed before sending
+            const payload = {
+                ...editingUser,
+                percentage: Number(editingUser.percentage || 0),
+                brokerage: editingUser.brokerage ? Number(editingUser.brokerage) : 2
+            };
+
+            await api.put(`/users/${editingUser._id}`, payload);
             alert("User updated successfully!");
             setShowEditUserModal(false);
             fetchDashboardData();
         } catch (error) {
-            alert(error.response?.data?.error || "Error updating user");
+            alert(error.response?.data?.error || error.response?.data?.msg || "Error updating user");
         }
     };
 
@@ -336,7 +343,7 @@ const AdminDashboard = () => {
             setShowFlagModal(false);
             fetchDashboardData();
         } catch (error) {
-            alert(error.response?.data?.message || "Action Denied: You cannot open a trade after 1:00 PM or close a trade after 6:00 PM.");
+            alert(error.response?.data?.message || "Error executing action.");
         }
         setIsSubmitting(false);
     };
@@ -623,95 +630,37 @@ const AdminDashboard = () => {
                                 </thead>
                                 <tbody>
                                     {sortedMasterTrades.map(t => (
-                                        <React.Fragment key={t._id}>
-                                            <tr style={{ cursor: 'pointer', background: expandedRows.has(t._id) ? 'var(--bg-body)' : 'inherit' }} onClick={() => toggleRow(t._id)}>
-                                                <td style={tdStyle}>
-                                                    <i className={`fas fa-chevron-${expandedRows.has(t._id) ? 'down' : 'right'}`} style={{ marginRight: '8px', color: 'var(--primary)', width: '12px' }}></i>
-                                                    {new Date(t.buy_timestamp).toLocaleString()}
-                                                </td>
-                                                <td style={{ ...tdStyle, fontWeight: 'bold' }}>{t.symbol}</td>
-                                                <td style={tdStyle}>{t.total_qty}</td>
-                                                <td style={{ ...tdStyle, fontFamily: 'monospace' }}>₹ {(t.buy_price || 0).toFixed(2)}</td>
-                                                <td style={{ ...tdStyle, fontFamily: 'monospace' }}>₹ {(t.buy_brokerage || 0).toFixed(2)}</td>
-                                                <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>
-                                                    {(() => {
-                                                        const liveData = currentTrades.find(ct => ct.master_trade_id === t.master_trade_id);
-                                                        return liveData ? (
-                                                            <span style={{ color: '#3b82f6' }}>₹ {liveData.current_price.toFixed(2)}</span>
-                                                        ) : '-';
-                                                    })()}
-                                                </td>
-                                                <td style={{ ...tdStyle, fontFamily: 'monospace', color: t.sell_price ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                                                    {t.sell_price ? `₹ ${t.sell_price.toFixed(2)}` : '-'}
-                                                </td>
-                                                <td style={{ ...tdStyle, fontFamily: 'monospace', color: t.status === 'CLOSED' ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                                                    {t.status === 'CLOSED' ? `₹ ${(t.sell_brokerage || 0).toFixed(2)}` : '-'}
-                                                </td>
-                                                <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>₹ {(t.total_cost || 0).toLocaleString()}</td>
-                                                <td style={tdStyle}>
-                                                    <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', background: t.status === 'CLOSED' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: t.status === 'CLOSED' ? 'var(--danger)' : 'var(--success)' }}>
-                                                        {t.status}
-                                                    </span>
-                                                </td>
-                                                <td style={tdStyle} onClick={(e) => e.stopPropagation()}>
-                                                    {t.status === 'OPEN' && (
-                                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                                                            <button className="btn" title="View Allocations" style={{ padding: '5px 10px', fontSize: '0.8rem', background: 'var(--primary)', color: '#fff', border: 'none' }} onClick={(e) => { e.stopPropagation(); openTradeDetails(t); }}><i className="fas fa-eye"></i></button>
-                                                            <button className="btn" style={{ padding: '5px 10px', fontSize: '0.8rem', background: '#10b981', color: '#fff', border: 'none' }} onClick={(e) => { e.stopPropagation(); openFlagModal(t, 'TEM_OPEN'); }}>Open Today</button>
-                                                            <button className="btn" style={{ padding: '5px 10px', fontSize: '0.8rem', background: '#ef4444', color: '#fff', border: 'none' }} onClick={(e) => { e.stopPropagation(); openFlagModal(t, 'TEM_CLOSE'); }}>Close Today</button>
-                                                            {(t.allocated_qty || 0) < t.total_qty && (
-                                                                <button className="btn btn-primary" style={{ padding: '5px 10px', fontSize: '0.8rem' }} onClick={(e) => { e.stopPropagation(); openAllocateModal(t); }}>Allocate</button>
-                                                            )}
-                                                            <button className="btn" style={{ padding: '5px 10px', fontSize: '0.8rem', background: 'var(--danger)', color: '#fff', border: 'none' }} onClick={(e) => { e.stopPropagation(); openCloseModal(t); }}>Close</button>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                            {(expandedRows.has(t._id)) ? (() => {
-                                                const tradeAllocations = allocations.filter(a => String(a.master_trade_id?._id || a.master_trade_id) === String(t._id));
-                                                if (tradeAllocations.length === 0) return null;
-                                                return (
-                                                    <tr style={{ background: 'rgba(0,0,0,0.1)' }}>
-                                                        <td colSpan="11" style={{ padding: '20px 40px' }}>
-                                                            <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '10px' }}>
-                                                                <i className="fas fa-sitemap" style={{ color: 'var(--text-muted)' }}></i>
-                                                                <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-muted)' }}>Allocations for {t.symbol}</h4>
-                                                            </div>
-                                                            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'var(--bg-card)', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                                                <thead>
-                                                                    <tr style={{ background: 'var(--bg-body)' }}>
-                                                                        <th style={{ ...thStyle, fontSize: '0.75rem', padding: '8px 12px' }}>Alloc ID</th>
-                                                                        <th style={{ ...thStyle, fontSize: '0.75rem', padding: '8px 12px' }}>User</th>
-                                                                        <th style={{ ...thStyle, fontSize: '0.75rem', padding: '8px 12px' }}>Qty</th>
-                                                                        <th style={{ ...thStyle, fontSize: '0.75rem', padding: '8px 12px' }}>Price</th>
-                                                                        <th style={{ ...thStyle, fontSize: '0.75rem', padding: '8px 12px' }}>Status</th>
-                                                                        <th style={{ ...thStyle, fontSize: '0.75rem', padding: '8px 12px' }}>Client P&L</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {tradeAllocations.map(a => (
-                                                                        <tr key={a._id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                                            <td style={{ ...tdStyle, padding: '8px 12px', fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--primary)' }}>{a.allocation_id}</td>
-                                                                            <td style={{ ...tdStyle, padding: '8px 12px', fontSize: '0.85rem', fontWeight: 'bold' }}>{a.user_name || a.mob_num}</td>
-                                                                            <td style={{ ...tdStyle, padding: '8px 12px', fontSize: '0.85rem' }}>{a.allocation_qty}</td>
-                                                                            <td style={{ ...tdStyle, padding: '8px 12px', fontSize: '0.85rem', fontFamily: 'monospace' }}>₹{a.allocation_price.toFixed(2)}</td>
-                                                                            <td style={{ ...tdStyle, padding: '8px 12px', fontSize: '0.85rem' }}>
-                                                                                <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '0.65rem', background: a.status === 'CLOSED' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: a.status === 'CLOSED' ? 'var(--danger)' : 'var(--success)' }}>
-                                                                                    {a.status}
-                                                                                </span>
-                                                                            </td>
-                                                                            <td style={{ ...tdStyle, padding: '8px 12px', fontSize: '0.85rem', fontFamily: 'monospace', color: a.client_pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                                                                                {a.status === 'CLOSED' ? `₹${a.client_pnl}` : '-'}
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </tbody>
-                                                            </table>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })() : null}
-                                        </React.Fragment>
+                                        <tr key={t._id} style={{ cursor: 'pointer' }} onClick={() => openTradeDetails(t)}>
+                                            <td style={tdStyle}>{new Date(t.buy_timestamp).toLocaleString()}</td>
+                                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{t.symbol}</td>
+                                            <td style={tdStyle}>{t.total_qty}</td>
+                                            <td style={{ ...tdStyle, fontFamily: 'monospace' }}>₹ {(t.buy_price || 0).toFixed(2)}</td>
+                                            <td style={{ ...tdStyle, fontFamily: 'monospace' }}>₹ {(t.buy_brokerage || 0).toFixed(2)}</td>
+                                            <td style={{ ...tdStyle, fontFamily: 'monospace', color: t.sell_price ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                                                {t.sell_price ? `₹ ${t.sell_price.toFixed(2)}` : '-'}
+                                            </td>
+                                            <td style={{ ...tdStyle, fontFamily: 'monospace', color: t.status === 'CLOSED' ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                                                {t.status === 'CLOSED' ? `₹ ${(t.sell_brokerage || 0).toFixed(2)}` : '-'}
+                                            </td>
+                                            <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 'bold' }}>₹ {(t.total_cost || 0).toLocaleString()}</td>
+                                            <td style={tdStyle}>
+                                                <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', background: t.status === 'CLOSED' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: t.status === 'CLOSED' ? 'var(--danger)' : 'var(--success)' }}>
+                                                    {t.status}
+                                                </span>
+                                            </td>
+                                            <td style={tdStyle} onClick={(e) => e.stopPropagation()}>
+                                                {t.status === 'OPEN' && (
+                                                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                                        <button className="btn" style={{ padding: '5px 10px', fontSize: '0.8rem', background: '#10b981', color: '#fff', border: 'none' }} onClick={() => openFlagModal(t, 'TEM_OPEN')}>Open Today</button>
+                                                        <button className="btn" style={{ padding: '5px 10px', fontSize: '0.8rem', background: '#ef4444', color: '#fff', border: 'none' }} onClick={() => openFlagModal(t, 'TEM_CLOSE')}>Close Today</button>
+                                                        {(t.allocated_qty || 0) < t.total_qty && (
+                                                            <button className="btn btn-primary" style={{ padding: '5px 10px', fontSize: '0.8rem' }} onClick={() => openAllocateModal(t)}>Allocate</button>
+                                                        )}
+                                                        <button className="btn" style={{ padding: '5px 10px', fontSize: '0.8rem', background: 'var(--danger)', color: '#fff', border: 'none' }} onClick={() => openCloseModal(t)}>Close</button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
                                     ))}
                                 </tbody>
                             </table>
@@ -823,7 +772,7 @@ const AdminDashboard = () => {
                                             <td style={tdStyle}>{new Date(a.buy_timestamp).toLocaleString()}</td>
                                             <td style={{ ...tdStyle, fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--primary)' }}>{a.allocation_id}</td>
                                             <td style={{ ...tdStyle, fontWeight: 'bold' }}>{a.master_trade_id?.symbol}</td>
-                                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{a.user_name || users.find(u => String(u.mob_num).replace(/^0+/, '') === String(a.mob_num).replace(/^0+/, ''))?.user_name || a.mob_num}</td>
+                                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{users.find(u => u.mob_num === a.mob_num)?.user_name || a.mob_num}</td>
                                             <td style={tdStyle}>{a.allocation_qty}</td>
                                             <td style={tdStyle}>
                                                 <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', background: a.status === 'CLOSED' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: a.status === 'CLOSED' ? 'var(--danger)' : 'var(--success)' }}>
@@ -860,7 +809,7 @@ const AdminDashboard = () => {
                                     {sortedLedger.map(l => (
                                         <tr key={l._id}>
                                             <td style={tdStyle}>{new Date(l.entry_date).toLocaleString()}</td>
-                                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{l.user_name || users.find(u => String(u.mob_num).replace(/^0+/, '') === String(l.mob_num).replace(/^0+/, ''))?.user_name || l.mob_num}</td>
+                                            <td style={{ ...tdStyle, fontWeight: 'bold' }}>{l.mob_num}</td>
                                             <td style={tdStyle}>{l.description}</td>
                                             <td style={{ ...tdStyle, color: 'var(--success)', fontFamily: 'monospace' }}>{l.amt_cr > 0 ? `₹ ${l.amt_cr.toLocaleString()}` : '-'}</td>
                                             <td style={{ ...tdStyle, color: 'var(--danger)', fontFamily: 'monospace' }}>{l.amt_dr > 0 ? `₹ ${l.amt_dr.toLocaleString()}` : '-'}</td>

@@ -183,13 +183,7 @@ const triggerFlag = async (req, res) => {
 
         const currentHour = new Date().getHours();
 
-        // Time controls
-        if (flagType === 'TEM_OPEN' && currentHour >= 13) {
-            return res.status(400).json({ message: "TEM_OPEN can only be triggered before 1:00 PM (13:00)" });
-        }
-        if (flagType === 'TEM_CLOSE' && currentHour >= 18) {
-            return res.status(400).json({ message: "TEM_CLOSE can only be triggered before 6:00 PM (18:00)" });
-        }
+        // Time controls removed by user request
 
         const flag = await DailyPriceFlag.create({
             tradeId: trade._id,
@@ -198,22 +192,24 @@ const triggerFlag = async (req, res) => {
             activePrice
         });
 
-        // Find all users allocated to this trade to create ledger entries
+        // Add informational ledger entry for each allocated user
         const allocations = await AllocationTrade.find({ master_trade_id: trade._id, status: 'OPEN' });
-        
+
         for (const alloc of allocations) {
-             const user = await User.findOne({ mob_num: alloc.mob_num });
-             if (user) {
-                 const flagLabel = flagType === 'TEM_OPEN' ? 'Open Today' : 'Close Today';
-                 await LedgerEntry.create({
-                     mob_num: user.mob_num,
-                     act_type: 'TRADE',
-                     amt_cr: 0,
-                     amt_dr: 0,
-                     cls_balance: user.current_balance, // Balance unchanged by flag
-                     description: `${flagLabel} triggered for ${trade.symbol} at active price ₹${activePrice}`
-                 });
-             }
+            const user = await User.findOne({ mob_num: alloc.mob_num });
+            if (user) {
+                const actionName = flagType === 'TEM_OPEN' ? 'Temporary Open' : 'Temporary Close';
+                const desc = `Trade Alert: ${actionName} for ${trade.symbol} at ₹${activePrice} (Day ${day})`;
+                
+                await LedgerEntry.create({
+                    mob_num: user.mob_num,
+                    act_type: 'TRADE',
+                    amt_cr: 0,
+                    amt_dr: 0,
+                    cls_balance: user.current_balance,
+                    description: desc
+                });
+            }
         }
 
         res.status(201).json({ message: "Flag triggered successfully", flag });
